@@ -1,0 +1,1 @@
+[2026-07-25 23:07:12] "[System.Net.WebRequest]::DefaultWebProxy = New-Object System.Net.WebProxy($env:HTTP_PROXY); npm run build"

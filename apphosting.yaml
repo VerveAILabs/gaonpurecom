@@ -1,0 +1,23 @@
+# Settings for App Hosting backend.
+runConfig:
+  minInstances: 0
+
+# Environment variables for build and runtime.
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyCLjGUeDlvYAz_zNVKetEATvcN1J4WCkt4"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "gaonpurecom.firebaseapp.com"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "gaonpurecom"
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "gaonpurecom.firebasestorage.app"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "741899365355"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:741899365355:web:86521c2c47248f5dfd87ae"
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: "G-45MCHSLBEV"
+  - variable: NEXT_PUBLIC_USE_FIREBASE_EMULATOR
+    value: "false"
+
