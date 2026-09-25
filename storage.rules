@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'rds087@gmail.com' || request.auth.token.email == 'gaonpure01@gmail.com'
+      );
+    }
+
+    match /product-images/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
