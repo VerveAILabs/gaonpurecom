@@ -15,7 +15,7 @@
     "build:storefront": "npm run build --workspace=@gaonpure/storefront",
     "build:admin": "npm run build --workspace=@gaonpure/admin-portal",
     "build:b2b": "npm run build --workspace=@gaonpure/storefront-b2b",
-    "build:all": "npm run build:storefront; npm run build:admin; npm run build:b2b",
+    "build:all": "npm run build:storefront && npm run build:admin && npm run build:b2b",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
     "prisma:seed": "node scripts/seed-postgres.mjs",
