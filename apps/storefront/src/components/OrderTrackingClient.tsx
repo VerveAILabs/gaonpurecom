@@ -45,7 +45,7 @@ export default function OrderTrackingClient({ id }: OrderTrackingClientProps) {
     setLoading(true);
     setError('');
     try {
-      const data = await getOrderById(id);
+      let data = await getOrderById(id);
       if (!data) {
         setError('Order not found.');
       } else {
@@ -53,6 +53,28 @@ export default function OrderTrackingClient({ id }: OrderTrackingClientProps) {
         if (data.userId !== user?.id && user?.role !== 'Admin') {
           setError('You do not have permission to view this order.');
         } else {
+          // If payment is pending, trigger payment verification with Razorpay
+          if (data.paymentStatus !== 'Paid') {
+            try {
+              const verifyRes = await fetch('/api/checkout/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: data.id, razorpayPaymentLinkId: data.orderNumber || (data as any).razorpayOrderId }),
+              });
+              if (verifyRes.ok) {
+                const verifyJson = await verifyRes.json();
+                if (verifyJson.success && verifyJson.order) {
+                  data = {
+                    ...data,
+                    paymentStatus: verifyJson.order.paymentStatus,
+                    status: verifyJson.order.orderStatus || data.status,
+                  };
+                }
+              }
+            } catch (vErr) {
+              console.warn('Silent payment verification error:', vErr);
+            }
+          }
           setOrder(data);
         }
       }
