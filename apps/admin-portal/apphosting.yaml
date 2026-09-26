@@ -63,6 +63,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_NEON_BRANCH
+    value: "staging"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: RAZORPAY_KEY_ID
     value: "rzp_test_S5Dnxf0esaudPy"
     availability:

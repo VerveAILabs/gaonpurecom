@@ -36,3 +36,5 @@ env:
     value: "postgresql://neondb_owner:npg_KOSFNkIDtV53@ep-bold-meadow-b415nu6i.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require"
   - variable: NEON_BRANCH
     value: "staging"
+  - variable: NEXT_PUBLIC_NEON_BRANCH
+    value: "staging"

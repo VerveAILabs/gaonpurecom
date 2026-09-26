@@ -16,7 +16,7 @@ export default function Header() {
           Neon PostgreSQL Connected
         </span>
         <span className="text-xs text-stone-400 font-mono hidden sm:inline">
-          branch: production
+          branch: {process.env.NEXT_PUBLIC_NEON_BRANCH || 'staging'}
         </span>
       </div>
 
