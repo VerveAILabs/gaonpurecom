@@ -2,6 +2,10 @@
 runConfig:
   minInstances: 0
 
+scripts:
+  buildCommand: prisma generate && next build && node scripts/copy-static.mjs
+  runCommand: node .next/standalone/apps/admin-portal/server.js
+
 # Environment variables for build and runtime.
 env:
   - variable: NEXT_PUBLIC_SITE_URL

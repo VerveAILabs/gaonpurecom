@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "prisma generate && next build",
-    "start": "next start -p 3001"
+    "build": "prisma generate && next build && node scripts/copy-static.mjs",
+    "start": "node .next/standalone/apps/admin-portal/server.js"
   },
   "dependencies": {
+    "@apphosting/adapter-nextjs": "^14.0.21",
     "@prisma/client": "^6.19.3",
     "@types/node": "^20",
     "@types/react": "^19",
