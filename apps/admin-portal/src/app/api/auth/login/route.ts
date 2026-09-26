@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { signSession, setAdminSessionCookie } from '@/lib/session';
 
-const ADMIN_EMAILS = [
+const DEFAULT_ADMIN_EMAILS = [
   'rds087@gmail.com',
   'admin@gaonpure.com',
   'gaonpure01@gmail.com',
-  'khiladi14290@gmail.com'
+  'khiladi14290@gmail.com',
+  'contact@verveai.co',
 ];
+
+const envAdminEmails = process.env.ADMIN_EMAILS
+  ? process.env.ADMIN_EMAILS.split(',').map((e) => e.toLowerCase().trim())
+  : [];
+
+const ADMIN_EMAILS = Array.from(new Set([...DEFAULT_ADMIN_EMAILS, ...envAdminEmails]));
 
 export async function POST(request: NextRequest) {
   try {
