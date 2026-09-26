@@ -128,7 +128,7 @@ export default function ProfilePage() {
                 </span>
                 {user.role === 'Admin' && (
                   <a 
-                    href={process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL || "https://admin.gaonpure.com"}
+                    href={process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL || "https://admin.stage.gaonpure.com"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-4 flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-full transition-all shadow-sm"

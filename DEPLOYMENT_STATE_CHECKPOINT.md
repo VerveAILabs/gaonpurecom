@@ -12,7 +12,8 @@ All primary application components (Admin Portal & Storefront) have been complet
 
 | Application | Domain | Target App Hosting Backend | Hosting Status | SSL / Ownership |
 | :--- | :--- | :--- | :--- | :--- |
-| **Admin Portal** | `admin.gaonpure.com` | `gaonpure-admin` | `HOST_ACTIVE` ✅ | `OWNERSHIP_ACTIVE`, `CERT_ACTIVE` |
+| **Admin Portal (Staging)** | `admin.stage.gaonpure.com` | `gaonpure-admin` | `HOST_ACTIVE` ✅ | `OWNERSHIP_ACTIVE`, `CERT_ACTIVE` |
+| **Admin Portal (Production)** | `admin.gaonpure.com` | `gaonpure-admin` (prod) | Prepared | Prepared |
 | **Storefront (Staging)** | `stage.gaonpure.com` | `gaonpurebackend` | `HOST_ACTIVE` ✅ | `OWNERSHIP_ACTIVE`, `CERT_ACTIVE` |
 | **Storefront (Production)** | `gaonpure.com` | `gaonpurebackend` (prod) | Prepared | Prepared |
 | **B2B Storefront** | `gaonpure-b2b--...` | `gaonpure-b2b` | Default URL active | Ready |
@@ -71,7 +72,7 @@ All primary application components (Admin Portal & Storefront) have been complet
 1. **Trigger / Verify Deployment in App Hosting**:
    - Check build and rollout status for `gaonpure-admin` and `gaonpurebackend` via Firebase App Hosting or GitHub commit push.
 2. **End-to-End Live Staging Smoke Test**:
-   - Test login and operations at `https://admin.gaonpure.com`.
+   - Test login and operations at `https://admin.stage.gaonpure.com`.
    - Test product browsing, cart, and Razorpay checkout at `https://stage.gaonpure.com`.
 3. **Production Rollout Readiness**:
    - When staging testing is approved, promote or mirror configuration to production (`gaonpurecom`).
