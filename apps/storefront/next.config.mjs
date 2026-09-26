@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
-import path from 'path';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const isDev = process.env.NODE_ENV === 'development';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const connectSrc = [
   "'self'",
@@ -27,11 +28,20 @@ const imgSrc = [
 
 const csp = `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' checkout.razorpay.com *.razorpay.com cdn.jsdelivr.net apis.google.com www.gstatic.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src ${imgSrc}; font-src 'self' data:; connect-src ${connectSrc}; frame-src 'self' checkout.razorpay.com *.razorpay.com *.rzp.io apis.google.com *.firebaseapp.com;`;
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.resolve(__dirname, '../../'),
   typescript: {
     ignoreBuildErrors: false,
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
   },
   async headers() {
     return [
