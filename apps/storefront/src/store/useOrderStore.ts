@@ -98,8 +98,12 @@ export const createOrder = async (orderData: Partial<Order>, userId: string): Pr
 export const getOrders = async (): Promise<Order[]> => {
   try {
     const user = auth.currentUser;
-    if (user?.uid) {
-      const res = await fetch(`/api/orders?userId=${user.uid}`);
+    if (user?.uid || user?.email) {
+      const params = new URLSearchParams();
+      if (user?.uid) params.set('userId', user.uid);
+      if (user?.email) params.set('email', user.email);
+
+      const res = await fetch(`/api/orders?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.orders) {

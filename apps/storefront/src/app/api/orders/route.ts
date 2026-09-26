@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const email = searchParams.get('email');
     const orderId = searchParams.get('orderId');
 
     if (orderId) {
@@ -15,9 +16,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, order });
     }
 
-    const where: any = {};
+    let where: any = {};
+    const orConditions: any[] = [];
     if (userId) {
-      where.userId = userId;
+      orConditions.push({ userId });
+    }
+    if (email) {
+      const cleanEmail = email.toLowerCase().trim();
+      orConditions.push({ user: { email: { equals: cleanEmail, mode: 'insensitive' } } });
+      orConditions.push({ shippingAddress: { path: ['email'], equals: cleanEmail } });
+    }
+
+    if (orConditions.length > 0) {
+      where = { OR: orConditions };
     }
 
     const orders = await prisma.order.findMany({
