@@ -78,3 +78,35 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: SHIPROCKET_EMAIL
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: SHIPROCKET_PASSWORD
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: SHIPROCKET_PICKUP_LOCATION
+    value: "Primary"
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_PHONE_NUMBER_ID
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_ACCESS_TOKEN
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_BUSINESS_ACCOUNT_ID
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_TEMPLATE_ORDER_CONFIRMED
+    value: "order_confirmation_tracking"
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_TEMPLATE_ORDER_DISPATCHED
+    value: "order_dispatched_tracking"
+    availability:
+      - RUNTIME

@@ -38,3 +38,19 @@ env:
     value: "staging"
   - variable: NEXT_PUBLIC_NEON_BRANCH
     value: "staging"
+  - variable: SHIPROCKET_EMAIL
+    value: ""
+  - variable: SHIPROCKET_PASSWORD
+    value: ""
+  - variable: SHIPROCKET_PICKUP_LOCATION
+    value: "Primary"
+  - variable: WHATSAPP_PHONE_NUMBER_ID
+    value: ""
+  - variable: WHATSAPP_ACCESS_TOKEN
+    value: ""
+  - variable: WHATSAPP_BUSINESS_ACCOUNT_ID
+    value: ""
+  - variable: WHATSAPP_TEMPLATE_ORDER_CONFIRMED
+    value: "order_confirmation_tracking"
+  - variable: WHATSAPP_TEMPLATE_ORDER_DISPATCHED
+    value: "order_dispatched_tracking"

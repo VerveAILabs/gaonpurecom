@@ -11,9 +11,11 @@ import {
   X, 
   Loader2, 
   RotateCcw,
-  CreditCard,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  MessageSquare,
+  Zap,
+  Send
 } from 'lucide-react';
 
 interface OrderItem {
@@ -67,6 +69,9 @@ export default function OrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
 
+  // Global Alert Message
+  const [globalNotification, setGlobalNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   // Store Settings for invoice
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({
     storeName: 'Gaon Pure',
@@ -82,6 +87,16 @@ export default function OrdersPage() {
   const [trackingUrl, setTrackingUrl] = useState('');
   const [isDispatching, setIsDispatching] = useState(false);
 
+  // Auto Shiprocket loading state per order ID
+  const [shiprocketLoadingId, setShiprocketLoadingId] = useState<string | null>(null);
+
+  // WhatsApp modal state
+  const [whatsAppModalOrder, setWhatsAppModalOrder] = useState<Order | null>(null);
+  const [whatsAppTemplate, setWhatsAppTemplate] = useState<'order_confirmed' | 'order_dispatched' | 'custom'>('order_dispatched');
+  const [customWhatsAppText, setCustomWhatsAppText] = useState('');
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<{ success?: string; error?: string } | null>(null);
+
   // Invoice modal state
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
 
@@ -92,6 +107,13 @@ export default function OrdersPage() {
   const [isRefunding, setIsRefunding] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
   const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setGlobalNotification({ type, message });
+    setTimeout(() => {
+      setGlobalNotification(null);
+    }, 4500);
+  };
 
   const fetchOrders = async (targetPage = page) => {
     setLoading(true);
@@ -155,9 +177,38 @@ export default function OrdersPage() {
       const json = await res.json();
       if (json.success) {
         setOrders(orders.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o)));
+        showNotification('success', `Order status updated to ${newStatus}`);
       }
     } catch (err) {
       console.error('Error updating status:', err);
+      showNotification('error', 'Failed to update order status');
+    }
+  };
+
+  // 1-Click Shiprocket Auto Dispatch & AWB Generation
+  const handleAutoShiprocket = async (order: Order) => {
+    setShiprocketLoadingId(order.id);
+    try {
+      const res = await fetch('/api/orders/shiprocket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, notifyWhatsApp: true }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setOrders(orders.map((o) => (o.id === order.id ? json.order : o)));
+        showNotification(
+          'success',
+          `Shiprocket AWB ${json.shiprocket?.awbCode || 'Assigned'} & WhatsApp tracking sent to customer!`
+        );
+      } else {
+        showNotification('error', json.error || 'Shiprocket dispatch request failed');
+      }
+    } catch (err: any) {
+      showNotification('error', err.message || 'Error connecting to Shiprocket');
+    } finally {
+      setShiprocketLoadingId(null);
     }
   };
 
@@ -182,11 +233,55 @@ export default function OrdersPage() {
       if (json.success) {
         setOrders(orders.map((o) => (o.id === dispatchModalOrder.id ? json.order : o)));
         setDispatchModalOrder(null);
+        showNotification('success', 'Order marked as Shipped and tracking saved.');
       }
     } catch (err) {
       console.error('Error saving dispatch info:', err);
+      showNotification('error', 'Failed to save courier info');
     } finally {
       setIsDispatching(false);
+    }
+  };
+
+  // WhatsApp Trigger Handler
+  const openWhatsAppModal = (order: Order) => {
+    setWhatsAppModalOrder(order);
+    setWhatsAppTemplate(order.orderStatus === 'Shipped' ? 'order_dispatched' : 'order_confirmed');
+    setCustomWhatsAppText('');
+    setWhatsAppStatus(null);
+  };
+
+  const handleSendWhatsAppSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!whatsAppModalOrder) return;
+
+    setIsSendingWhatsApp(true);
+    setWhatsAppStatus(null);
+
+    try {
+      const res = await fetch('/api/orders/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: whatsAppModalOrder.id,
+          templateType: whatsAppTemplate,
+          customMessage: whatsAppTemplate === 'custom' ? customWhatsAppText : undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setWhatsAppStatus({ success: 'WhatsApp message delivered successfully!' });
+        setTimeout(() => {
+          setWhatsAppModalOrder(null);
+        }, 1500);
+      } else {
+        setWhatsAppStatus({ error: json.error || 'Failed to send WhatsApp message' });
+      }
+    } catch (err: any) {
+      setWhatsAppStatus({ error: err.message || 'Error communicating with WhatsApp API' });
+    } finally {
+      setIsSendingWhatsApp(false);
     }
   };
 
@@ -238,12 +333,29 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Global Notification Banner */}
+      {globalNotification && (
+        <div className={`p-4 rounded-2xl flex items-center justify-between shadow-md transition-all ${
+          globalNotification.type === 'success' 
+            ? 'bg-emerald-600 text-white' 
+            : 'bg-red-600 text-white'
+        }`}>
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            {globalNotification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+            <span>{globalNotification.message}</span>
+          </div>
+          <button onClick={() => setGlobalNotification(null)} className="text-white/80 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Orders & Dispatch</h1>
           <p className="text-xs text-stone-500 mt-1">
-            Fulfill orders, issue tracking numbers, manage Razorpay refunds & print GST invoices
+            Automate Shiprocket AWB creation, send Meta WhatsApp tracking alerts & manage Razorpay refunds
           </p>
         </div>
 
@@ -293,6 +405,8 @@ export default function OrdersPage() {
         <div className="space-y-4">
           {orders.map((order) => {
             const address = order.shippingAddress;
+            const isAutoDispatching = shiprocketLoadingId === order.id;
+
             return (
               <div
                 key={order.id}
@@ -317,20 +431,50 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Actions & Status Dropdown */}
-                  <div className="flex items-center gap-2.5 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <select
                       value={order.orderStatus}
                       onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-stone-300 bg-stone-50 focus:ring-2 focus:ring-emerald-500"
+                      className="text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-stone-300 bg-stone-50 focus:ring-2 focus:ring-emerald-500"
                     >
                       {statusOptions.map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
 
-                    {/* Dispatch Button */}
+                    {/* 1-Click Shiprocket Auto-Dispatch */}
                     <button
-                      onClick={() => setDispatchModalOrder(order)}
+                      onClick={() => handleAutoShiprocket(order)}
+                      disabled={isAutoDispatching}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 transition-opacity shadow-sm disabled:opacity-50"
+                      title="Generate Shiprocket AWB & Trigger WhatsApp Tracking Link"
+                    >
+                      {isAutoDispatching ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Zap className="w-3.5 h-3.5" />
+                      )}
+                      {order.trackingNumber ? 'Re-Sync Shiprocket' : 'Auto Shiprocket'}
+                    </button>
+
+                    {/* WhatsApp Update */}
+                    <button
+                      onClick={() => openWhatsAppModal(order)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 transition-colors shadow-sm"
+                      title="Send WhatsApp Notification"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      WhatsApp
+                    </button>
+
+                    {/* Manual Dispatch Button */}
+                    <button
+                      onClick={() => {
+                        setDispatchModalOrder(order);
+                        setCourierName(order.courierName || 'Delhivery');
+                        setTrackingNumber(order.trackingNumber || '');
+                        setTrackingUrl(order.trackingUrl || '');
+                      }}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-stone-900 text-white hover:bg-stone-800 transition-colors shadow-sm"
                     >
                       <Truck className="w-3.5 h-3.5" />
@@ -378,7 +522,7 @@ export default function OrdersPage() {
                     <div className="font-bold text-stone-800 uppercase tracking-wider text-[10px]">Logistics / AWB</div>
                     {order.trackingNumber ? (
                       <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/60 space-y-1">
-                        <div className="font-semibold text-stone-800">{order.courierName || 'Courier Partner'}</div>
+                        <div className="font-semibold text-stone-800">{order.courierName || 'Shiprocket Hub'}</div>
                         <div className="font-mono text-emerald-700 font-bold">AWB: {order.trackingNumber}</div>
                         {order.trackingUrl && (
                           <a href={order.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 mt-1 text-[11px]">
@@ -387,7 +531,9 @@ export default function OrdersPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="text-stone-400 italic text-[11px]">No courier assigned yet. Click "Dispatch" to record AWB.</div>
+                      <div className="text-stone-400 italic text-[11px]">
+                        No courier assigned. Click <span className="font-semibold text-emerald-700">"Auto Shiprocket"</span> for instant AWB generation.
+                      </div>
                     )}
                     {order.razorpayPaymentId && (
                       <div className="text-[10px] text-stone-500 font-mono pt-1">
@@ -455,7 +601,95 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* DISPATCH MODAL */}
+      {/* WHATSAPP TRIGGER MODAL */}
+      {whatsAppModalOrder && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-bold text-stone-900 text-sm">
+                  Send WhatsApp Alert: {whatsAppModalOrder.orderNumber}
+                </h3>
+              </div>
+              <button onClick={() => setWhatsAppModalOrder(null)} className="text-stone-400 hover:text-stone-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {whatsAppStatus?.success && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{whatsAppStatus.success}</span>
+              </div>
+            )}
+
+            {whatsAppStatus?.error && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{whatsAppStatus.error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSendWhatsAppSubmit} className="space-y-4 text-xs">
+              <div className="p-3 bg-stone-50 rounded-xl space-y-1 text-stone-700">
+                <div>Recipient: <span className="font-bold">{whatsAppModalOrder.user?.name || whatsAppModalOrder.shippingAddress?.name || 'Customer'}</span></div>
+                <div>Phone: <span className="font-mono font-semibold">{whatsAppModalOrder.user?.phone || whatsAppModalOrder.shippingAddress?.phone || 'N/A'}</span></div>
+                {whatsAppModalOrder.trackingNumber && (
+                  <div>AWB / Tracking: <span className="font-mono font-bold text-emerald-700">{whatsAppModalOrder.trackingNumber}</span></div>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">Select Message Template</label>
+                <select
+                  value={whatsAppTemplate}
+                  onChange={(e: any) => setWhatsAppTemplate(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  <option value="order_dispatched">Order Dispatched (With Live Tracking Link)</option>
+                  <option value="order_confirmed">Order Confirmed (Harvest Confirmation)</option>
+                  <option value="custom">Custom Text Message</option>
+                </select>
+              </div>
+
+              {whatsAppTemplate === 'custom' && (
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">Custom Message</label>
+                  <textarea
+                    rows={4}
+                    required
+                    placeholder="Enter custom message to send directly to customer..."
+                    value={customWhatsAppText}
+                    onChange={(e) => setCustomWhatsAppText(e.target.value)}
+                    className="w-full px-3 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setWhatsAppModalOrder(null)}
+                  className="px-4 py-2 font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingWhatsApp}
+                  className="px-5 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSendingWhatsApp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Send via Meta API
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MANUAL DISPATCH MODAL */}
       {dispatchModalOrder && (
         <div className="fixed inset-0 z-50 bg-stone-900/60 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
@@ -477,6 +711,7 @@ export default function OrdersPage() {
                   className="w-full px-3 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
                 >
                   <option value="Delhivery">Delhivery</option>
+                  <option value="Shiprocket">Shiprocket (General)</option>
                   <option value="BlueDart">BlueDart</option>
                   <option value="DTDC">DTDC</option>
                   <option value="India Post">India Post Speed Post</option>
