@@ -120,7 +120,7 @@ export async function sendMetaWhatsAppMessage(params: {
 export async function sendOrderConfirmedWhatsApp(order: {
   id: string;
   orderNumber: string;
-  totalAmount: number | string;
+  totalAmount: any;
   shippingAddress: any;
   courierName?: string | null;
   trackingNumber?: string | null;
