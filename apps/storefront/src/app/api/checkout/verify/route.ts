@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         });
 
         try {
-          const link = await razorpay.paymentLink.fetch(paymentLinkId);
+          const link: any = await razorpay.paymentLink.fetch(paymentLinkId);
           if (link.status === 'paid') {
             const paymentId = link.payments?.[0]?.payment_id || razorpayPaymentId;
             order = await prisma.order.update({

@@ -109,13 +109,13 @@ export async function getShiprocketToken(): Promise<string | null> {
 export async function createAndAssignShiprocketShipment(order: {
   id: string;
   orderNumber: string;
-  totalAmount: number | string;
-  subtotal: number | string;
+  totalAmount: any;
+  subtotal?: any;
   shippingAddress: any;
   items: Array<{
     productName: string;
     quantity: number;
-    unitPrice: number | string;
+    unitPrice: any;
     weight?: string;
   }>;
 }): Promise<ShiprocketAWBResult> {

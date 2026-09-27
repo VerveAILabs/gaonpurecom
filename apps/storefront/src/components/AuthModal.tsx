@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { X, Mail, Lock, User, Camera, ArrowRight, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { X, Mail, Lock, User, Camera, ArrowRight, AlertCircle, CheckCircle2, ChevronLeft, Loader2, Sparkles } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
 
@@ -16,6 +16,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [view, setView] = useState<AuthView>('login');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Please wait...');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,12 +31,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleGoogleSignIn = async () => {
     setError('');
     setLoading(true);
+    setLoadingMessage('Signing in with Google Account...');
     try {
       await loginWithGoogle();
       onClose();
     } catch (err: unknown) {
       const msg = getFirebaseErrorMessage(err);
-      if (msg) setError(msg); // silently ignore cancelled-popup-request
+      if (msg) setError(msg);
     } finally {
       setLoading(false);
     }
@@ -45,6 +47,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setLoadingMessage('Authenticating your account...');
     try {
       const result = await loginWithEmail(email, password);
       if (result.unverified) {
@@ -68,9 +71,21 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       return;
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
     setLoading(true);
+    setLoadingMessage('Creating your account...');
     try {
+      // Step 1: Create Account & Send Verification Email
+      setLoadingMessage('Creating your profile and sending verification email...');
       await signUpWithEmail(email, password, name, photoFile || undefined);
+      
+      // Step 2: Show successful transition
+      setLoadingMessage('Account created! Preparing verification...');
+      await new Promise((resolve) => setTimeout(resolve, 600));
       setView('verification');
     } catch (err: unknown) {
       setError(getFirebaseErrorMessage(err));
@@ -83,6 +98,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setLoadingMessage('Sending password reset instructions...');
     try {
       await resetPassword(email);
       setView('reset-success');
@@ -102,21 +118,31 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const renderContent = () => {
     if (view === 'verification') {
       return (
-        <div className="text-center">
+        <div className="text-center py-2 animate-in fade-in duration-300">
           <div className="mb-6 flex justify-center">
-            <div className="p-4 bg-green-50 rounded-full">
-              <CheckCircle2 className="w-12 h-12 text-green-500" />
+            <div className="p-4 bg-emerald-50 rounded-full shadow-inner ring-8 ring-emerald-50/50">
+              <CheckCircle2 className="w-12 h-12 text-emerald-600 animate-bounce" />
             </div>
           </div>
-          <h2 className="text-2xl font-serif font-bold text-stone-800 mb-4">Verify your email</h2>
-          <p className="text-stone-600 mb-8 leading-relaxed">
-            We have sent you a verification email to <span className="font-semibold text-stone-800">{email}</span>. Verify it and log in.
+          <h2 className="text-2xl font-serif font-bold text-stone-900 mb-3">Verify Your Email</h2>
+          <p className="text-stone-600 text-sm mb-2 leading-relaxed">
+            We have sent a verification link to:
+          </p>
+          <div className="p-3 bg-stone-50 border border-stone-200/80 rounded-xl font-mono text-xs font-bold text-emerald-800 mb-6">
+            {email}
+          </div>
+          <p className="text-stone-500 text-xs mb-8">
+            Please click the link in your inbox to activate your Gaon Pure account before logging in.
           </p>
           <button
-            onClick={() => setView('login')}
-            className="w-full bg-brand-secondary text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all"
+            onClick={() => {
+              setView('login');
+              setError('');
+            }}
+            className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
           >
-            Go to Login
+            <span>Proceed to Sign In</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       );
@@ -124,21 +150,21 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
     if (view === 'reset-success') {
       return (
-        <div className="text-center">
+        <div className="text-center py-2 animate-in fade-in duration-300">
           <div className="mb-6 flex justify-center">
-            <div className="p-4 bg-green-50 rounded-full">
-              <CheckCircle2 className="w-12 h-12 text-green-500" />
+            <div className="p-4 bg-emerald-50 rounded-full shadow-inner ring-8 ring-emerald-50/50">
+              <CheckCircle2 className="w-12 h-12 text-emerald-600" />
             </div>
           </div>
-          <h2 className="text-2xl font-serif font-bold text-stone-800 mb-4">Check your email</h2>
-          <p className="text-stone-600 mb-8 leading-relaxed">
-            We sent you a password change link to <span className="font-semibold text-stone-800">{email}</span>.
+          <h2 className="text-2xl font-serif font-bold text-stone-900 mb-3">Check Your Email</h2>
+          <p className="text-stone-600 text-sm mb-6 leading-relaxed">
+            We sent password reset instructions to <span className="font-semibold text-stone-800">{email}</span>.
           </p>
           <button
             onClick={() => setView('login')}
-            className="w-full bg-brand-secondary text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all"
+            className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all"
           >
-            Sign In
+            Back to Sign In
           </button>
         </div>
       );
@@ -157,7 +183,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <h2 className="text-2xl font-serif font-bold text-stone-800">Reset Password</h2>
           </div>
 
-          <p className="text-stone-600 mb-6">
+          <p className="text-stone-600 text-sm mb-6">
             Enter your email address and we&apos;ll send you a link to reset your password.
           </p>
 
@@ -177,21 +203,24 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 required
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all"
+                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all text-sm"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-brand-secondary text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             >
               {loading ? (
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Sending reset link...</span>
+                </div>
               ) : (
                 <>
-                  Get Reset Link
-                  <ArrowRight className="w-5 h-5" />
+                  <span>Get Reset Link</span>
+                  <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
@@ -203,17 +232,24 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     return (
       <>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-serif font-bold text-stone-800">
-            {view === 'login' ? 'Welcome Back' : 'Create Account'}
-          </h2>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 transition-colors p-1 rounded-full hover:bg-stone-50">
-            <X className="w-6 h-6" />
+          <div>
+            <h2 className="text-2xl font-serif font-bold text-stone-900 tracking-tight">
+              {view === 'login' ? 'Welcome Back' : 'Join Gaon Pure'}
+            </h2>
+            <p className="text-xs text-stone-500 mt-1">
+              {view === 'login' 
+                ? 'Sign in to access your orders and farm fresh harvest' 
+                : 'Create an account for 100% natural, unadulterated village harvest'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 transition-colors p-1.5 rounded-full hover:bg-stone-100">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 shrink-0" />
+          <div className="mb-5 p-3.5 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
             <p className="font-medium">{error}</p>
           </div>
         )}
@@ -221,13 +257,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <form onSubmit={view === 'login' ? handleLogin : handleSignup} className="space-y-4">
           {view === 'signup' && (
             <>
-              <div className="flex justify-center mb-6">
+              <div className="flex justify-center mb-4">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="relative group"
+                  title="Upload profile picture (optional)"
                 >
-                  <div className="w-24 h-24 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-brand-secondary">
+                  <div className="w-20 h-20 rounded-full bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-emerald-600 shadow-inner">
                     {photoFile ? (
                       <img
                         src={URL.createObjectURL(photoFile)}
@@ -235,11 +272,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Camera className="w-8 h-8 text-stone-400 group-hover:text-brand-secondary" />
+                      <Camera className="w-7 h-7 text-stone-400 group-hover:text-emerald-700 transition-colors" />
                     )}
                   </div>
-                  <div className="absolute bottom-0 right-0 p-1.5 bg-brand-secondary rounded-full text-white shadow-lg">
-                    <Camera className="w-4 h-4" />
+                  <div className="absolute bottom-0 right-0 p-1.5 bg-emerald-800 rounded-full text-white shadow-md">
+                    <Camera className="w-3.5 h-3.5" />
                   </div>
                   <input
                     ref={fileInputRef}
@@ -252,52 +289,52 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               </div>
 
               <div className="relative">
-                <User className="absolute left-4 top-3.5 w-5 h-5 text-stone-400" />
+                <User className="absolute left-4 top-3.5 w-4 h-4 text-stone-400" />
                 <input
                   type="text"
                   placeholder="Full Name"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all"
+                  className="w-full pl-11 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all text-xs text-stone-800"
                 />
               </div>
             </>
           )}
 
           <div className="relative">
-            <Mail className="absolute left-4 top-3.5 w-5 h-5 text-stone-400" />
+            <Mail className="absolute left-4 top-3.5 w-4 h-4 text-stone-400" />
             <input
               type="email"
               placeholder="Email Address"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all"
+              className="w-full pl-11 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all text-xs text-stone-800"
             />
           </div>
 
           <div className="space-y-1">
             <div className="relative">
-              <Lock className="absolute left-4 top-3.5 w-5 h-5 text-stone-400" />
+              <Lock className="absolute left-4 top-3.5 w-4 h-4 text-stone-400" />
               <input
                 type="password"
                 placeholder="Password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all"
+                className="w-full pl-11 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all text-xs text-stone-800"
               />
             </div>
             {view === 'login' && (
-              <div className="flex justify-end">
+              <div className="flex justify-end pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setView('forgot-password');
                     setError('');
                   }}
-                  className="text-xs font-bold text-brand-secondary hover:underline"
+                  className="text-[11px] font-bold text-emerald-800 hover:underline"
                 >
                   Forgot password?
                 </button>
@@ -307,14 +344,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           {view === 'signup' && (
             <div className="relative">
-              <Lock className="absolute left-4 top-3.5 w-5 h-5 text-stone-400" />
+              <Lock className="absolute left-4 top-3.5 w-4 h-4 text-stone-400" />
               <input
                 type="password"
-                placeholder="Repeat Password"
+                placeholder="Confirm Password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-secondary/20 focus:border-brand-secondary transition-all"
+                className="w-full pl-11 pr-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition-all text-xs text-stone-800"
               />
             </div>
           )}
@@ -322,20 +359,23 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand-secondary text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+            className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-60 text-xs uppercase tracking-wider"
           >
             {loading ? (
-              <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Processing...</span>
+              </div>
             ) : (
               <>
-                {view === 'login' ? 'Sign In' : 'Create Account'}
-                <ArrowRight className="w-5 h-5" />
+                <span>{view === 'login' ? 'Sign In' : 'Create Account'}</span>
+                <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
         </form>
 
-        <div className="my-6 flex items-center gap-4 text-stone-400 text-sm">
+        <div className="my-5 flex items-center gap-3 text-stone-400 text-xs">
           <div className="h-px bg-stone-200 flex-1" />
           <span>or continue with</span>
           <div className="h-px bg-stone-200 flex-1" />
@@ -344,20 +384,20 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="w-full bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 font-bold py-3.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+          className="w-full bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 font-semibold py-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-60 text-xs"
         >
-          <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-          Google Account
+          <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+          <span>Continue with Google</span>
         </button>
 
-        <p className="mt-8 text-center text-sm text-stone-500">
+        <p className="mt-6 text-center text-xs text-stone-500">
           {view === 'login' ? "Don't have an account?" : 'Already have an account?'}
           <button
             onClick={() => {
               setView(view === 'login' ? 'signup' : 'login');
               setError('');
             }}
-            className="ml-2 text-brand-secondary font-bold hover:underline"
+            className="ml-1.5 text-emerald-800 font-bold hover:underline"
           >
             {view === 'login' ? 'Sign Up' : 'Sign In'}
           </button>
@@ -367,10 +407,37 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-md z-50 overflow-y-auto">
+    <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md z-50 overflow-y-auto">
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-300">
-          <div className="p-8 md:p-10">
+        <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200 relative">
+          
+          {/* Full-Screen / Modal-Wide Progress Loader Overlay */}
+          {loading && (
+            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-200">
+              <div className="relative mb-5">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center ring-8 ring-emerald-50/60">
+                  <Loader2 className="w-8 h-8 text-emerald-700 animate-spin" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 p-1 bg-amber-400 rounded-full shadow-sm">
+                  <Sparkles className="w-3.5 h-3.5 text-stone-900" />
+                </div>
+              </div>
+
+              <h3 className="text-base font-bold text-stone-900 mb-1 tracking-tight">
+                {view === 'signup' ? 'Setting Up Your Account' : 'Please Wait'}
+              </h3>
+              
+              <p className="text-xs text-stone-600 max-w-xs leading-relaxed">
+                {loadingMessage}
+              </p>
+
+              <div className="w-48 h-1.5 bg-stone-100 rounded-full overflow-hidden mt-5">
+                <div className="w-full h-full bg-emerald-600 rounded-full animate-pulse" />
+              </div>
+            </div>
+          )}
+
+          <div className="p-8 md:p-9">
             {renderContent()}
           </div>
         </div>
@@ -378,4 +445,3 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     </div>
   );
 }
-

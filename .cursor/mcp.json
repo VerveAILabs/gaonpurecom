@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "shiprocket": {
+      "command": "node",
+      "args": [
+        "-r",
+        "tsconfig-paths/register",
+        "C:\\Users\\Mouss Tech\\.gemini\\tools\\shiprocket-mcp\\dist\\main.js"
+      ],
+      "env": {
+        "MCP_TRANSPORT": "STDIO",
+        "SELLER_EMAIL": "contact@verveai.co",
+        "SELLER_PASSWORD": "Manjuram@87"
+      }
+    },
+    "whatsapp-business-tools": {
+      "serverUrl": "https://mcp.facebook.com/whatsapp_business_tools"
+    }
+  }
+}
