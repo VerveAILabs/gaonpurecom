@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkShiprocketServiceability } from '@/lib/logistics/shiprocket';
+import { isPincodeDeliverable } from '@/lib/pincode';
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,18 @@ export async function GET(request: NextRequest) {
     if (!pincode || pincode.length !== 6) {
       return NextResponse.json(
         { success: false, error: 'A valid 6-digit Indian delivery pincode is required.' },
+        { status: 400 }
+      );
+    }
+
+    if (!isPincodeDeliverable(pincode)) {
+      return NextResponse.json(
+        {
+          success: false,
+          deliverable: false,
+          pincode,
+          error: `We currently deliver only within Maharashtra and Uttar Pradesh. Delivery is not available for PIN code ${pincode}.`,
+        },
         { status: 400 }
       );
     }

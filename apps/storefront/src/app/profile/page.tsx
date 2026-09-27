@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { getOrders } from '@/store/useOrderStore';
 import { User, Mail, Phone, MapPin, Home, Hash, Save, CheckCircle2, ChevronRight, Package, LayoutDashboard, Loader2, Globe } from 'lucide-react';
 import Link from 'next/link';
-import { lookupPincode } from '@/lib/pincode';
+import { lookupPincode, isStateDeliverable, isPincodeDeliverable } from '@/lib/pincode';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -30,14 +30,20 @@ export default function ProfilePage() {
   // Populate form from user store
   useEffect(() => {
     if (user) {
+      const pin = user.pincode || '';
+      const state = (user as any).state || '';
       setFormData({
         name: user.name || '',
         phone: user.phone || '',
         address: user.address || '',
         city: user.city || '',
-        state: (user as any).state || '',
-        pincode: user.pincode || '',
+        state: state,
+        pincode: pin,
       });
+
+      if (pin && pin.length === 6 && !isPincodeDeliverable(pin) && !isStateDeliverable(state)) {
+        setPincodeError('Note: Gaon Pure currently delivers exclusively across Maharashtra and Uttar Pradesh.');
+      }
     }
   }, [user]);
 
@@ -58,11 +64,16 @@ export default function ProfilePage() {
       if (data) {
         setFormData(prev => ({
           ...prev,
-          city: data.city,
-          state: data.state
+          city: data.city || prev.city,
+          state: data.state || prev.state,
         }));
+        if (!data.isDeliverable && !isPincodeDeliverable(cleanPin)) {
+          setPincodeError('Note: Gaon Pure currently delivers exclusively across Maharashtra and Uttar Pradesh.');
+        }
       } else {
-        setPincodeError('PIN code not found. Please fill manually.');
+        if (!isPincodeDeliverable(cleanPin)) {
+          setPincodeError('Note: Gaon Pure currently delivers exclusively across Maharashtra and Uttar Pradesh.');
+        }
       }
     }
   };

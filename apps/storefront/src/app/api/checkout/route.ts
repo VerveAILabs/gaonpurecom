@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { prisma } from '@/lib/prisma';
+import { isStateDeliverable, isPincodeDeliverable } from '@/lib/pincode';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +19,19 @@ export async function POST(request: NextRequest) {
     if (!shippingAddress || !shippingAddress.name || !shippingAddress.email || !shippingAddress.phone) {
       return NextResponse.json(
         { error: { message: 'Valid shipping name, email, and phone are required.' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate delivery territory (Only Maharashtra and Uttar Pradesh allowed)
+    const isDeliverable = isStateDeliverable(shippingAddress.state) || isPincodeDeliverable(shippingAddress.pincode);
+    if (!isDeliverable) {
+      return NextResponse.json(
+        {
+          error: {
+            message: `Delivery is not available for PIN code ${shippingAddress.pincode || ''} (${shippingAddress.state || 'Selected state'}). Gaon Pure delivers exclusively across Maharashtra and Uttar Pradesh.`,
+          },
+        },
         { status: 400 }
       );
     }

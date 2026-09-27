@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { createCatalogPaymentLinkAgent } from '@/lib/paymentLinkAgent';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
-import { lookupPincode } from '@/lib/pincode';
+import { lookupPincode, isStateDeliverable, isPincodeDeliverable, ALLOWED_DELIVERY_STATES } from '@/lib/pincode';
 import { AuthModal } from '@/components/AuthModal';
 
 export default function Checkout() {
@@ -23,20 +23,31 @@ export default function Checkout() {
   const [paymentError, setPaymentError] = useState('');
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
+  const [isDeliverable, setIsDeliverable] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Prefill from user profile when authenticated
   useEffect(() => {
     if (user) {
+      const pin = (user as any).pincode || '';
+      const state = (user as any).state || '';
       setFormData({
         name: user.name || '',
         email: user.email || '',
         phone: (user as any).phone || '',
         address: (user as any).address || '',
         city: (user as any).city || '',
-        state: (user as any).state || '',
-        pincode: (user as any).pincode || '',
+        state: state,
+        pincode: pin,
       });
+
+      if (pin && pin.length === 6) {
+        const deliverable = isPincodeDeliverable(pin) || isStateDeliverable(state);
+        setIsDeliverable(deliverable);
+        if (!deliverable) {
+          setPincodeError('We currently deliver only within Maharashtra and Uttar Pradesh.');
+        }
+      }
     }
   }, [user]);
 
@@ -101,23 +112,68 @@ export default function Checkout() {
     const cleanPin = pin.replace(/\D/g, '').slice(0, 6);
     setFormData(prev => ({ ...prev, pincode: cleanPin }));
     setPincodeError('');
+    setPaymentError('');
 
     if (cleanPin.length === 6) {
       if (!/^[1-9][0-9]{5}$/.test(cleanPin)) {
         setPincodeError('Please enter a valid 6-digit Indian PIN code.');
+        setIsDeliverable(false);
         return;
       }
+
+      const prefixDeliverable = isPincodeDeliverable(cleanPin);
+
       setPincodeLoading(true);
       const data = await lookupPincode(cleanPin);
       setPincodeLoading(false);
+
       if (data) {
         setFormData(prev => ({
           ...prev,
-          city: data.city,
-          state: data.state
+          city: data.city || prev.city,
+          state: data.state || prev.state,
         }));
+
+        if (!data.isDeliverable && !prefixDeliverable) {
+          setIsDeliverable(false);
+          setPincodeError(
+            data.message || `We do not deliver to PIN code ${cleanPin}. Delivery is currently available only in Maharashtra and Uttar Pradesh.`
+          );
+        } else {
+          setIsDeliverable(true);
+          setPincodeError('');
+        }
       } else {
-        setPincodeError('PIN code not found. Please fill manually.');
+        if (!prefixDeliverable) {
+          setIsDeliverable(false);
+          setPincodeError(`Delivery is not available for PIN code ${cleanPin}. We deliver only in Maharashtra and Uttar Pradesh.`);
+        } else {
+          setIsDeliverable(true);
+          setPincodeError('');
+        }
+      }
+    } else {
+      setIsDeliverable(true);
+    }
+  };
+
+  const handleStateChange = (stateValue: string) => {
+    setFormData(prev => ({ ...prev, state: stateValue }));
+    if (stateValue && !isStateDeliverable(stateValue)) {
+      setIsDeliverable(false);
+      setPincodeError('We currently deliver only within Maharashtra and Uttar Pradesh.');
+    } else {
+      if (formData.pincode.length === 6) {
+        const deliverable = isPincodeDeliverable(formData.pincode) || isStateDeliverable(stateValue);
+        setIsDeliverable(deliverable);
+        if (!deliverable) {
+          setPincodeError('We currently deliver only within Maharashtra and Uttar Pradesh.');
+        } else {
+          setPincodeError('');
+        }
+      } else {
+        setIsDeliverable(true);
+        setPincodeError('');
       }
     }
   };
@@ -129,6 +185,17 @@ export default function Checkout() {
   const handlePayNow = async (e: React.FormEvent) => {
     e.preventDefault();
     setPaymentError('');
+
+    // Strict client-side check for Maharashtra / UP
+    const deliverable = isStateDeliverable(formData.state) || isPincodeDeliverable(formData.pincode);
+    if (!deliverable || !isDeliverable) {
+      setPaymentError(
+        `We do not serve this location (${formData.pincode || formData.state || 'Selected Address'}). Gaon Pure delivery is strictly restricted to Maharashtra and Uttar Pradesh.`
+      );
+      setIsDeliverable(false);
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -210,9 +277,17 @@ export default function Checkout() {
           
           {/* Left Panel: Delivery Details */}
           <div className="bg-white p-6 md:p-8 rounded-[32px] border border-stone-200/50 shadow-sm md:col-span-3">
-            <h2 className="text-xl font-serif text-brand-secondary mb-6 font-bold flex items-center gap-2 border-b border-stone-100 pb-3">
+            <h2 className="text-xl font-serif text-brand-secondary mb-4 font-bold flex items-center gap-2 border-b border-stone-100 pb-3">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-primary" /> Delivery Information
             </h2>
+
+            {/* Delivery zone restriction announcement */}
+            <div className="flex items-start gap-2.5 p-3.5 bg-amber-50/80 border border-amber-200/70 rounded-2xl text-xs text-amber-900 mb-6 font-medium">
+              <span className="text-base shrink-0">📍</span>
+              <div className="leading-relaxed">
+                <span className="font-bold">Serviceable Regions:</span> We currently deliver farm-fresh products exclusively to addresses in <strong className="text-brand-secondary underline decoration-amber-400">Maharashtra</strong> and <strong className="text-brand-secondary underline decoration-amber-400">Uttar Pradesh</strong>.
+              </div>
+            </div>
             
             <form onSubmit={handlePayNow} className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
@@ -238,22 +313,49 @@ export default function Checkout() {
                 </div>
                 <div className="col-span-2">
                   <div className="flex justify-between items-center mb-1.5">
-                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">PIN Code (Indian only)</label>
-                    {pincodeLoading && <span className="text-[10px] text-brand-primary font-bold animate-pulse flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Fetching details...</span>}
-                    {pincodeError && <span className="text-[10px] text-red-500 font-bold">{pincodeError}</span>}
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider">PIN Code (Maharashtra & UP Only)</label>
+                    {pincodeLoading && <span className="text-[10px] text-brand-primary font-bold animate-pulse flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Checking serviceability...</span>}
                   </div>
-                  <input required type="text" className={`w-full px-4 py-2.5 text-sm rounded-xl border focus:outline-none focus:ring-2 bg-stone-50 transition-all font-medium ${pincodeError ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-stone-200 focus:ring-brand-primary/20 focus:border-brand-primary'}`}
-                    value={formData.pincode} onChange={e => handlePincodeChange(e.target.value)} placeholder="400001" />
+                  <input required type="text" className={`w-full px-4 py-2.5 text-sm rounded-xl border focus:outline-none focus:ring-2 bg-stone-50 transition-all font-medium ${pincodeError ? 'border-red-300 focus:ring-red-200 focus:border-red-400 bg-red-50/20' : 'border-stone-200 focus:ring-brand-primary/20 focus:border-brand-primary'}`}
+                    value={formData.pincode} onChange={e => handlePincodeChange(e.target.value)} placeholder="e.g. 411001 or 226001" maxLength={6} />
+                  
+                  {pincodeError && (
+                    <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200/80 rounded-2xl text-xs text-red-700 mt-2.5">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Service Not Available</p>
+                        <p className="mt-0.5 leading-relaxed">{pincodeError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!pincodeError && formData.pincode.length === 6 && !pincodeLoading && (
+                    <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 mt-2.5 font-medium">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>Delivery available in <strong>{formData.state || 'Maharashtra / UP'}</strong> via Express Logistics.</span>
+                    </div>
+                  )}
                 </div>
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">City</label>
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">City / District</label>
                   <input required type="text" className="w-full px-4 py-2.5 text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-stone-50 transition-all font-medium"
-                    value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="Mumbai" />
+                    value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="Pune / Lucknow" />
                 </div>
                 <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">State</label>
-                  <input required type="text" className="w-full px-4 py-2.5 text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-stone-50 transition-all font-medium"
-                    value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} placeholder="Maharashtra" />
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">State (MH or UP)</label>
+                  <select
+                    required
+                    value={formData.state}
+                    onChange={e => handleStateChange(e.target.value)}
+                    className="w-full px-4 py-2.5 text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-stone-50 transition-all font-medium cursor-pointer"
+                  >
+                    <option value="">Select State</option>
+                    <option value="Maharashtra">Maharashtra</option>
+                    <option value="Uttar Pradesh">Uttar Pradesh</option>
+                    {formData.state && !ALLOWED_DELIVERY_STATES.includes(formData.state as any) && (
+                      <option value={formData.state}>{formData.state} (Unsupported)</option>
+                    )}
+                  </select>
                 </div>
               </div>
 
@@ -283,13 +385,18 @@ export default function Checkout() {
 
               <button
                 type="submit"
-                disabled={isProcessing}
-                className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 rounded-full shadow hover:shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed text-xs uppercase tracking-widest cursor-pointer"
+                disabled={isProcessing || !isDeliverable || !!pincodeError || formData.pincode.length !== 6}
+                className="w-full bg-brand-primary hover:bg-brand-primary-dark text-white font-bold py-3.5 rounded-full shadow hover:shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-widest cursor-pointer"
               >
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
                     Generating Payment Link...
+                  </>
+                ) : !isDeliverable || !!pincodeError ? (
+                  <>
+                    <AlertCircle className="w-4 h-4 text-white" />
+                    Delivery Unavailable for this PIN Code
                   </>
                 ) : (
                   <>
