@@ -213,7 +213,7 @@ export async function createAndAssignShiprocketShipment(order: {
 
   // Compute total package weight in kg
   let totalWeightKg = 0;
-  const orderItems: ShiprocketOrderItem[] = order.items.map((it) => {
+  const orderItems: ShiprocketOrderItem[] = order.items.map((it: any, idx: number) => {
     const qty = Number(it.quantity || 1);
     const weightStr = (it.weight || '1kg').toLowerCase();
     let unitWeightKg = 1;
@@ -230,6 +230,7 @@ export async function createAndAssignShiprocketShipment(order: {
 
     return {
       name: it.productName,
+      sku: it.sku || it.variantId || `GP-ITEM-${idx + 1}`,
       units: qty,
       selling_price: Number(it.unitPrice),
       discount: 0,
@@ -241,12 +242,17 @@ export async function createAndAssignShiprocketShipment(order: {
   const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
   const cleanPhone = (addr.phone || '9999999999').replace(/\D/g, '').slice(-10);
+  const fullName = (addr.name || 'Valued Customer').trim();
+  const nameParts = fullName.split(' ');
+  const firstName = nameParts[0] || 'Customer';
+  const lastName = nameParts.slice(1).join(' ') || '.';
 
   const payload: CreateShiprocketOrderPayload = {
     order_id: order.orderNumber,
     order_date: formattedDate,
     pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION || 'Primary',
-    billing_customer_name: addr.name || 'Customer',
+    billing_customer_name: firstName,
+    billing_last_name: lastName,
     billing_address: addr.address || 'Street Address',
     billing_city: addr.city || 'Pune',
     billing_state: addr.state || 'Maharashtra',

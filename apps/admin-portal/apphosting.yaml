@@ -30,7 +30,7 @@ env:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    value: "gaonpurecom-staging.firebasestorage.app"
+    value: "gaonpurecom.firebasestorage.app"
     availability:
       - BUILD
       - RUNTIME

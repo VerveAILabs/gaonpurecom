@@ -43,14 +43,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const awbCode = shiprocketRes.awbCode || `SR-SHIP-${shiprocketRes.shipmentId}`;
+    const courier = shiprocketRes.courierName || 'Shiprocket Express';
+    const trackingLink = shiprocketRes.trackingUrl || (shiprocketRes.awbCode ? `https://shiprocket.co/tracking/${shiprocketRes.awbCode}` : 'https://shiprocket.co');
+
     // Update Neon PostgreSQL Order
     const updatedOrder = await prisma.order.update({
       where: { id: order.id },
       data: {
         orderStatus: 'Shipped',
-        courierName: shiprocketRes.courierName || 'Delhivery (via Shiprocket)',
-        trackingNumber: shiprocketRes.awbCode || order.trackingNumber,
-        trackingUrl: shiprocketRes.trackingUrl || (shiprocketRes.awbCode ? `https://shiprocket.co/tracking/${shiprocketRes.awbCode}` : undefined),
+        courierName: courier,
+        trackingNumber: awbCode,
+        trackingUrl: trackingLink,
       },
       include: { items: true, user: true },
     });

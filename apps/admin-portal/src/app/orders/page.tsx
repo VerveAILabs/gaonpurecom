@@ -667,22 +667,48 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-stone-100">
-                <button
-                  type="button"
-                  onClick={() => setWhatsAppModalOrder(null)}
-                  className="px-4 py-2 font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-stone-100">
+                <a
+                  href={(() => {
+                    const rawPhone = whatsAppModalOrder.user?.phone || whatsAppModalOrder.shippingAddress?.phone || '';
+                    const cleanPhone = rawPhone.replace(/\D/g, '').replace(/^91/, '');
+                    const targetPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                    const customerName = whatsAppModalOrder.user?.name || whatsAppModalOrder.shippingAddress?.name || 'Customer';
+                    const trackingLink = whatsAppModalOrder.trackingUrl || `https://stage.gaonpure.com/orders/${whatsAppModalOrder.id}`;
+                    const courier = whatsAppModalOrder.courierName || 'Shiprocket Express';
+                    const awb = whatsAppModalOrder.trackingNumber || 'Assigned upon packing';
+                    
+                    const text = customWhatsAppText || (whatsAppModalOrder.orderStatus === 'Shipped'
+                      ? `🚚 *Gaon Pure — Order Dispatched!*\n\nNamaste *${customerName}*,\n\nYour order *#${whatsAppModalOrder.orderNumber}* has been dispatched via *${courier}*.\n\n🔍 *AWB:* ${awb}\n🌐 *Track Live:* ${trackingLink}\n\n_Gaon Pure Logistics_`
+                      : `🌾 *Gaon Pure — Order Confirmed!*\n\nNamaste *${customerName}*,\n\nYour order *#${whatsAppModalOrder.orderNumber}* (₹${whatsAppModalOrder.totalAmount}) is confirmed and being prepared fresh!\n\n🌐 *View Details:* ${trackingLink}\n\n_Gaon Pure Team_`);
+
+                    return `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-4 py-2 font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl text-center flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSendingWhatsApp}
-                  className="px-5 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm flex items-center gap-2 disabled:opacity-50"
-                >
-                  {isSendingWhatsApp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  Send via Meta API
-                </button>
+                  <MessageSquare className="w-4 h-4 text-emerald-600" />
+                  Open in WhatsApp Web
+                </a>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setWhatsAppModalOrder(null)}
+                    className="px-4 py-2 font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingWhatsApp}
+                    className="px-5 py-2 font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isSendingWhatsApp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Send via Meta API
+                  </button>
+                </div>
               </div>
             </form>
           </div>

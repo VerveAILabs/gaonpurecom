@@ -12,14 +12,54 @@ export async function uploadImageFile(file: File, pathPrefix = 'products'): Prom
     throw new Error('Image size must be less than 5MB.');
   }
 
-  const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const filePath = `${pathPrefix}/${Date.now()}_${cleanName}`;
-  const storageRef = ref(storage, filePath);
+  // 1. Primary Method: Upload via server-side API (avoids CORS, preflight 404, and bucket mismatch issues)
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('pathPrefix', pathPrefix);
 
-  const snapshot = await uploadBytes(storageRef, file, {
-    contentType: file.type,
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.url) {
+        return data.url;
+      }
+    }
+  } catch (apiErr) {
+    console.warn('Server upload route failed, attempting direct cloud storage fallback:', apiErr);
+  }
+
+  // 2. Fallback Method: Direct Firebase Storage
+  try {
+    const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `${pathPrefix}/${Date.now()}_${cleanName}`;
+    const storageRef = ref(storage, filePath);
+
+    const snapshot = await uploadBytes(storageRef, file, {
+      contentType: file.type,
+    });
+
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    return downloadUrl;
+  } catch (storageErr) {
+    console.warn('Firebase storage fallback failed, generating local data URL:', storageErr);
+  }
+
+  // 3. Resilient Client-Side Fallback: FileReader Base64 Data URL
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to read image data.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Failed to process image file.'));
+    reader.readAsDataURL(file);
   });
-
-  const downloadUrl = await getDownloadURL(snapshot.ref);
-  return downloadUrl;
 }
