@@ -57,6 +57,22 @@ export interface ShiprocketAWBResult {
   error?: string;
 }
 
+export interface CourierServiceabilityResult {
+  success: boolean;
+  recommendedCourier?: string;
+  couriers?: Array<{
+    courierName: string;
+    courierCompanyId: number;
+    rate: number;
+    estimatedDeliveryDays: string;
+    rating: number;
+    codAvailable: boolean;
+  }>;
+  error?: string;
+}
+
+const BASE_URL = process.env.SHIPROCKET_API_BASE_URL || 'https://apiv2.shiprocket.in/v1/external';
+
 let cachedToken: string | null = null;
 let tokenExpiry: number = 0;
 
@@ -64,6 +80,10 @@ let tokenExpiry: number = 0;
  * Authenticates with Shiprocket API and returns a cached JWT bearer token.
  */
 export async function getShiprocketToken(): Promise<string | null> {
+  if (process.env.SHIPROCKET_TOKEN) {
+    return process.env.SHIPROCKET_TOKEN;
+  }
+
   const email = process.env.SHIPROCKET_EMAIL;
   const password = process.env.SHIPROCKET_PASSWORD;
 
@@ -77,7 +97,7 @@ export async function getShiprocketToken(): Promise<string | null> {
   }
 
   try {
-    const res = await fetch('https://apiv2.shiprocket.in/v1/external/auth/login', {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -92,6 +112,7 @@ export async function getShiprocketToken(): Promise<string | null> {
     const json = await res.json();
     if (json.token) {
       cachedToken = json.token;
+      // Cache token for 9 days (Shiprocket tokens typically valid for 10 days)
       tokenExpiry = now + 9 * 24 * 60 * 60 * 1000;
       return cachedToken;
     }
@@ -100,6 +121,66 @@ export async function getShiprocketToken(): Promise<string | null> {
   }
 
   return null;
+}
+
+/**
+ * Checks courier serviceability, rates, and EDD between source and destination pincodes.
+ */
+export async function checkShiprocketServiceability(params: {
+  pickupPincode?: string;
+  deliveryPincode: string;
+  weightKg?: number;
+  isCod?: boolean;
+}): Promise<CourierServiceabilityResult> {
+  const token = await getShiprocketToken();
+  if (!token) {
+    return { success: false, error: 'Shiprocket credentials not configured' };
+  }
+
+  const pickup = params.pickupPincode || '411001';
+  const delivery = params.deliveryPincode.replace(/\D/g, '').slice(0, 6);
+  const weight = Math.max(0.5, params.weightKg || 1);
+  const cod = params.isCod ? 1 : 0;
+
+  const url = `${BASE_URL}/courier/serviceability/?pickup_postcode=${pickup}&delivery_postcode=${delivery}&weight=${weight}&cod=${cod}`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      return { success: false, error: `Serviceability error: ${err}` };
+    }
+
+    const json = await res.json();
+    const availableCouriers = json.data?.available_courier_companies || [];
+
+    const mappedCouriers = availableCouriers.map((c: any) => ({
+      courierName: c.courier_name,
+      courierCompanyId: c.courier_company_id,
+      rate: Number(c.rate),
+      estimatedDeliveryDays: c.etd || '3-5 days',
+      rating: Number(c.rating || 4.5),
+      codAvailable: c.cod === 1,
+    }));
+
+    return {
+      success: true,
+      recommendedCourier: json.data?.recommended_courier_company_id 
+        ? mappedCouriers.find((c: any) => c.courierCompanyId === json.data.recommended_courier_company_id)?.courierName
+        : mappedCouriers[0]?.courierName || 'Delhivery',
+      couriers: mappedCouriers,
+    };
+  } catch (err: any) {
+    console.error('Shiprocket serviceability check error:', err);
+    return { success: false, error: err.message };
+  }
 }
 
 /**
@@ -130,6 +211,7 @@ export async function createAndAssignShiprocketShipment(order: {
     ? JSON.parse(order.shippingAddress)
     : order.shippingAddress || {};
 
+  // Compute total package weight in kg
   let totalWeightKg = 0;
   const orderItems: ShiprocketOrderItem[] = order.items.map((it) => {
     const qty = Number(it.quantity || 1);
@@ -183,7 +265,8 @@ export async function createAndAssignShiprocketShipment(order: {
   };
 
   try {
-    const orderRes = await fetch('https://apiv2.shiprocket.in/v1/external/orders/create/adhoc', {
+    // 1. Create order on Shiprocket
+    const orderRes = await fetch(`${BASE_URL}/orders/create/adhoc`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -205,26 +288,46 @@ export async function createAndAssignShiprocketShipment(order: {
       return { success: false, error: 'Shiprocket returned no shipment_id' };
     }
 
-    const awbRes = await fetch('https://apiv2.shiprocket.in/v1/external/courier/assign/awb', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ shipment_id: shipmentId }),
-    });
-
+    // 2. Request AWB assignment for this shipment
     let awbCode = '';
     let courierName = 'Delhivery (via Shiprocket)';
     let trackingUrl = '';
 
-    if (awbRes.ok) {
-      const awbJson = await awbRes.json();
-      if (awbJson.response?.data?.awb_code) {
-        awbCode = awbJson.response.data.awb_code;
-        courierName = awbJson.response.data.courier_name || courierName;
-        trackingUrl = `https://shiprocket.co/tracking/${awbCode}`;
+    try {
+      // Find optimal courier if possible
+      const serviceability = await checkShiprocketServiceability({
+        pickupPincode: process.env.SHIPROCKET_PICKUP_PINCODE || '411028',
+        deliveryPincode: payload.billing_pincode,
+        weightKg: payload.weight,
+        isCod: false,
+      });
+
+      const chosenCourier = serviceability.couriers?.[0];
+      const awbPayload: any = { shipment_id: shipmentId };
+      if (chosenCourier?.courierCompanyId) {
+        awbPayload.courier_id = chosenCourier.courierCompanyId;
+        courierName = `${chosenCourier.courierName} (via Shiprocket)`;
       }
+
+      const awbRes = await fetch(`${BASE_URL}/courier/assign/awb`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(awbPayload),
+      });
+
+      if (awbRes.ok) {
+        const awbJson = await awbRes.json();
+        if (awbJson.response?.data?.awb_code) {
+          awbCode = awbJson.response.data.awb_code;
+          courierName = awbJson.response.data.courier_name || courierName;
+          trackingUrl = `https://shiprocket.co/tracking/${awbCode}`;
+        }
+      }
+    } catch (awbErr) {
+      console.warn('Shiprocket AWB assignment deferred:', awbErr);
     }
 
     return {
@@ -237,6 +340,56 @@ export async function createAndAssignShiprocketShipment(order: {
     };
   } catch (err: any) {
     console.error('Shiprocket automation failed:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Tracks a shipment in real-time by AWB code or order ID.
+ */
+export async function trackShiprocketShipment(awbCode: string): Promise<{
+  success: boolean;
+  status?: string;
+  currentLocation?: string;
+  activityHistory?: Array<{ date: string; status: string; location: string; activity: string }>;
+  error?: string;
+}> {
+  const token = await getShiprocketToken();
+  if (!token) {
+    return { success: false, error: 'Shiprocket credentials missing' };
+  }
+
+  try {
+    const res = await fetch(`${BASE_URL}/courier/track/awb/${awbCode}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      return { success: false, error: `Tracking error: ${err}` };
+    }
+
+    const json = await res.json();
+    const trackingData = json.tracking_data;
+    const scans = trackingData?.shipment_track_activities || [];
+
+    return {
+      success: true,
+      status: trackingData?.track_status ? (trackingData.track_status === 1 ? 'Delivered' : 'In Transit') : 'Booked',
+      currentLocation: trackingData?.shipment_track?.[0]?.current_status || 'Hub',
+      activityHistory: scans.map((s: any) => ({
+        date: s.date,
+        status: s.status,
+        location: s.location,
+        activity: s.activity,
+      })),
+    };
+  } catch (err: any) {
+    console.error('Shiprocket tracking lookup failed:', err);
     return { success: false, error: err.message };
   }
 }
