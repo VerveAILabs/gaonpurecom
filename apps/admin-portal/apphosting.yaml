@@ -2,10 +2,6 @@
 runConfig:
   minInstances: 0
 
-scripts:
-  buildCommand: prisma generate && next build && node scripts/copy-static.mjs
-  runCommand: node .next/standalone/apps/admin-portal/server.js
-
 # Environment variables for build and runtime.
 env:
   - variable: NEXT_PUBLIC_SITE_URL
@@ -78,12 +74,16 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: SHIPROCKET_API_BASE_URL
+    value: "https://api-sandbox.shiprocket.in/v1/external"
+    availability:
+      - RUNTIME
   - variable: SHIPROCKET_EMAIL
-    value: ""
+    value: "rds087+api@gmail.com"
     availability:
       - RUNTIME
   - variable: SHIPROCKET_PASSWORD
-    value: ""
+    value: "933d4db92ac8ba264f3ee750693061d1"
     availability:
       - RUNTIME
   - variable: SHIPROCKET_PICKUP_LOCATION
@@ -91,22 +91,22 @@ env:
     availability:
       - RUNTIME
   - variable: WHATSAPP_PHONE_NUMBER_ID
-    value: ""
+    value: "1277115778825919"
     availability:
       - RUNTIME
   - variable: WHATSAPP_ACCESS_TOKEN
-    value: ""
+    value: "EAAXM4QerJCcBSmina45OLl5HwCxG6fJ0FzZAtGsXUhKbfla6ETpDBU1BImZBpF3PyooatVFu0XZBTNBe6H3tppYQG3YpEgJgLHaArpyXG3SCDf2L3LlvBRZBxxoKZBtUt7FFxRyAePzigPkqLQnajSSZA3EE9NhsnUMXBlZAFMaWaYvAEDQg6bTebq5ue6W39iGJR6yZBqjZAmXrglddQf1ydMBPEKJb3kPmZBEBa6vjuPdabLcmOHUPm4PTbypzuM5PGIfUVSx6xJ4wXIGZAXaZCZAoZD"
     availability:
       - RUNTIME
   - variable: WHATSAPP_BUSINESS_ACCOUNT_ID
-    value: ""
+    value: "1712165099876993"
     availability:
       - RUNTIME
   - variable: WHATSAPP_TEMPLATE_ORDER_CONFIRMED
-    value: "order_confirmation_tracking"
+    value: "gaonpure_order_confirmed"
     availability:
       - RUNTIME
   - variable: WHATSAPP_TEMPLATE_ORDER_DISPATCHED
-    value: "order_dispatched_tracking"
+    value: "gaonpure_order_dispatched"
     availability:
       - RUNTIME
