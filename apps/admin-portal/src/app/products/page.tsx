@@ -15,9 +15,12 @@ import {
   FolderPlus, 
   Image as ImageIcon,
   FolderTree,
-  AlertCircle
+  AlertCircle,
+  Mic,
+  Sparkles
 } from 'lucide-react';
 import { uploadImageFile } from '@/lib/storage';
+import VoiceProductModal, { ParsedVoiceProduct } from '@/components/VoiceProductModal';
 
 interface Variant {
   id?: string;
@@ -55,6 +58,7 @@ export default function ProductsPage() {
 
   // Product Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -225,6 +229,55 @@ export default function ProductsPage() {
     }
   };
 
+  const handleApplyVoiceProduct = (voiceData: ParsedVoiceProduct) => {
+    setEditingProduct(null);
+    setName(voiceData.name);
+    setDescription(voiceData.description);
+    setImageUrl(voiceData.imageUrl || 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop');
+    setIsFeatured(voiceData.isFeatured);
+    setCategoryId(voiceData.categoryId || categories[0]?.id || '');
+    setVariants(
+      voiceData.variants.map((v) => ({
+        weight: v.weight,
+        price: Number(v.price),
+        stock: Number(v.stock),
+        sku: v.sku || '',
+      }))
+    );
+    setImageUploadError(null);
+    setIsModalOpen(true);
+  };
+
+  const handleDirectCreateVoiceProduct = async (voiceData: ParsedVoiceProduct) => {
+    const payload = {
+      name: voiceData.name,
+      description: voiceData.description,
+      categoryId: voiceData.categoryId || categories[0]?.id || '',
+      imageUrl: voiceData.imageUrl || 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&auto=format&fit=crop',
+      isFeatured: voiceData.isFeatured,
+      isActive: true,
+      variants: voiceData.variants.map((v) => ({
+        weight: v.weight,
+        price: Number(v.price),
+        stock: Number(v.stock),
+        sku: v.sku || '',
+      })),
+    };
+
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json();
+    if (!json.success) {
+      throw new Error(json.error || 'Failed to create product via voice command');
+    }
+
+    await fetchProducts();
+  };
+
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -290,6 +343,18 @@ export default function ProductsPage() {
           >
             <FolderTree className="w-4 h-4 text-stone-500" />
             Manage Categories
+          </button>
+          <button
+            onClick={() => {
+              fetchCategories();
+              setIsVoiceModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+            title="Add a product using Voice Command"
+          >
+            <Mic className="w-4 h-4 text-emerald-600 animate-pulse" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            Voice Add Product
           </button>
           <button
             onClick={openCreateModal}
@@ -722,6 +787,15 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Voice Product Assistant Modal */}
+      <VoiceProductModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        categories={categories}
+        onApplyToForm={handleApplyVoiceProduct}
+        onDirectCreate={handleDirectCreateVoiceProduct}
+      />
     </div>
   );
 }
